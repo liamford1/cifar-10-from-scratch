@@ -58,16 +58,12 @@ def max_pool_backward(input, grad_output):
         return grad_input
 
 def conv_kernels_backward(input, grad_output, kernel_shape):
-    grads = np.zeros(kernel_shape)
     h, w = input.shape[0] - 2, input.shape[1] - 2
-    
-    for i in range(h):
-        for j in range(w):
-            for k in range(kernel_shape[0]):
-                patch = input[i:i+3, j:j+3, :]
-                grads[k] += patch * grad_output[i, j, k]
+    patches = np.lib.stride_tricks.sliding_window_view(input, (3, 3, input.shape[2]), axis=(0, 1, 2)).reshape(h, w, 3*3*input.shape[2])
+    grad_flat = grad_output.reshape(h*w, grad_output.shape[2])
+    grads = (patches.reshape(h*w, -1).T @ grad_flat).T
 
-    return grads
+    return grads.reshape(kernel_shape)
 
 def conv_input_backward(grad_output, kernels, input_shape):
     grad_input = np.zeros(input_shape)
@@ -90,3 +86,40 @@ def cross_entropy_loss(preds, true):
 
 def softmax_cross_entropy_gradient(preds, true):
     return preds - true
+
+#Batch Functions
+def batch_conv(input_batch, kernels):
+    batch_size, h, w, c = input_batch.shape
+    num_kernels = kernels.shape[0]
+    output = np.zeros((batch_size, h, w, num_kernels))
+
+    patches = np.lib.stride_tricks.sliding_window_view(input_batch, (3, 3, c), axis=(1, 2, 3)).reshape(batch_size, h-2, w-2, 3*3*c)
+    kernels_flat = kernels.reshape(num_kernels, 3*3*c)
+    output = patches @ kernels_flat.T
+
+    return output.reshape(batch_size, h-2, w-2, num_kernels)
+
+def batch_max_pool(input_batch):
+    batch_size, h, w, c = input_batch.shape
+
+    reshaped = input_batch.reshape(batch_size, h//2, 2, w//2, 2, c)
+
+    return np.max(reshaped, axis=(2, 4))
+
+def batch_dense(input_batch, w, b):
+    if not input_batch.flags['C_CONTIGUOUS']:
+        input_batch = np.ascontiguousarray(input_batch)
+    return input_batch @ w + b
+
+def batch_relu(input_batch):
+    return np.maximum(0, input_batch)
+
+def batch_softmax(input_batch):
+    exp_x = np.exp(input_batch - np.max(input_batch, axis=1, keepdims=True))
+    return exp_x / np.sum(exp_x, axis=1, keepdims=True)
+
+def batch_padding(input_batch):
+    return np.pad(input_batch, pad_width=((0,0), (1,1), (1,1), (0,0)), mode='constant', constant_values=0)
+
+def batch_flatten(input_batch):
+    return input_batch.reshape(input_batch.shape[0], -1)

@@ -3,7 +3,7 @@ CIFAR-10 CNN from Scratch - Main Demo
 Shows the complete CNN training from scratch using pure NumPy
 """
 
-from train import train_single_sample, test_network_forward, test_shapes, quick_gradient_check
+from train import train_single_sample, test_network_forward, test_shapes, quick_gradient_check, test_batch_training, debug_batch_shapes, hyperparameter_search
 from data_loader import load_cifar10_data
 
 def main():
@@ -40,6 +40,14 @@ def main():
     print("\n" + "=" * 60)
     print("Demo complete! Check train.py for more training options.")
     print("=" * 60)
+
+    # Test batch training
+    print("\nTesting batch processing...")
+    test_batch_training()
+
+    debug_batch_shapes()
+
+    hyperparameter_search()
 
 if __name__ == "__main__":
     main()
