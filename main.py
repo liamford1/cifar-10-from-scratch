@@ -3,7 +3,8 @@ CIFAR-10 CNN from Scratch - Main Demo
 Shows the complete CNN training from scratch using pure NumPy
 """
 
-from train import train_single_sample, test_network_forward, test_shapes, quick_gradient_check, test_batch_training, debug_batch_shapes, hyperparameter_search
+from train import train_model, TrainingConfig, quick_train, test_model
+from config import ModelConfig
 from data_loader import load_cifar10_data
 
 def main():
@@ -18,36 +19,25 @@ def main():
     print(f"Image shape: {x_train.shape[1:]}")
     print()
     
-    # Test shapes first
-    print("Testing layer dimensions...")
-    test_shapes()
-    print()
-    
-    # Quick gradient check
-    print("Testing gradient computation...")
-    quick_gradient_check()
-    print()
-    
-    # Test forward pass
-    print("Testing forward pass...")
-    test_network_forward()
-    print()
-    
-    # Demonstrate learning
-    print("Demonstrating learning on single sample...")
-    train_single_sample()
+    # Quick training demo
+    print("Running quick training demo...")
+    model, history = quick_train(
+        learning_rate=0.01,
+        batch_size=64,
+        epochs=5,
+        max_samples=1000  # Use subset for quick demo
+    )
     
     print("\n" + "=" * 60)
-    print("Demo complete! Check train.py for more training options.")
+    print("Training complete! Testing on test set...")
     print("=" * 60)
-
-    # Test batch training
-    print("\nTesting batch processing...")
-    test_batch_training()
-
-    debug_batch_shapes()
-
-    hyperparameter_search()
+    
+    # Test on test set
+    test_model(model, x_test, y_test)
+    
+    print("\n" + "=" * 60)
+    print("Demo complete!")
+    print("=" * 60)
 
 if __name__ == "__main__":
     main()

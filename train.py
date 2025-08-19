@@ -1,254 +1,157 @@
 import numpy as np
-from model import CNN, BatchCNN
+from model import BatchCNN
 from data_loader import load_cifar10_data
-from layers import batch_conv, batch_max_pool, batch_relu, batch_padding, batch_flatten
+from config import ModelConfig, TrainingConfig
 
-def train_single_sample():
-    print("TESTING")
-
+def train_model(model_config: ModelConfig, training_config: TrainingConfig, 
+                max_samples=None, verbose=True):
+    """
+    Main training function for the CNN model.
+    
+    Args:
+        model_config: Model architecture configuration
+        training_config: Training hyperparameters
+        max_samples: Maximum number of samples to use (for quick testing)
+        verbose: Whether to print training progress
+    
+    Returns:
+        tuple: (trained_model, training_history)
+    """
+    # Load data
     x_train, y_train, x_test, y_test = load_cifar10_data()
-    cnn = CNN()
-
-    sample_x = x_train[0]
-    sample_y = y_train[0]
-
-    print(f"Input image shape: {sample_x.shape}")
-    print(f"True label (one-hot): {sample_y}")
-    print(f"True class: {np.argmax(sample_y)}")
-
-    print("Before training:")
-    predictions = cnn.forward(sample_x)
-    loss = cnn.compute_loss(predictions, sample_y)
-    print(f"Loss: {loss:.4f}")
-    print(f"Confidence in true class: {predictions[np.argmax(sample_y)]:.4f}")
-
-    learning_rate = 0.01
-
-    for i in range(10):
-        predictions = cnn.forward(sample_x)
-        cnn.backprop(sample_y)
-        cnn.update_weights(learning_rate)
+    
+    # Limit samples if specified
+    if max_samples:
+        x_train = x_train[:max_samples]
+        y_train = y_train[:max_samples]
+    
+    # Split into train/validation
+    split_idx = int(len(x_train) * (1 - training_config.validation_split))
+    x_train_split = x_train[:split_idx]
+    y_train_split = y_train[:split_idx]
+    x_val = x_train[split_idx:]
+    y_val = y_train[split_idx:]
+    
+    # Initialize model
+    model = BatchCNN(model_config)
+    
+    # Training history
+    history = {
+        'train_loss': [],
+        'train_accuracy': [],
+        'val_loss': [],
+        'val_accuracy': []
+    }
+    
+    if verbose:
+        print(f"Training on {len(x_train_split)} samples")
+        print(f"Validation on {len(x_val)} samples")
+        print(f"Batch size: {training_config.batch_size}")
+        print(f"Learning rate: {training_config.learning_rate}")
+        print(f"Epochs: {training_config.epochs}")
+        print("-" * 50)
+    
+    # Training loop
+    for epoch in range(training_config.epochs):
+        # Training
+        train_loss, train_accuracy = train_epoch(
+            model, x_train_split, y_train_split, training_config
+        )
         
-        if i % 2 == 0:
-            loss = cnn.compute_loss(predictions, sample_y)
-            print(f"Step {i}: Loss = {loss:.4f}")
-    
-    print("\nAfter training:")
-    predictions = cnn.forward(sample_x)
-    loss = cnn.compute_loss(predictions, sample_y)
-    print(f"Final loss: {loss:.4f}")
-    print(f"Final confidence: {predictions[np.argmax(sample_y)]:.4f}")
-
-def test_network_forward():
-    """Test forward pass and show network architecture."""
-    x_train, y_train, x_test, y_test = load_cifar10_data()
-    cnn = CNN()
-    
-    sample_x = x_train[0]
-    predictions = cnn.forward(sample_x)
-    
-    print(f"Input shape: {sample_x.shape}")
-    print(f"Network layer shapes:")
-    print(f"  Conv1 output: {cnn.conv1.shape}")
-    print(f"  Pool1 output: {cnn.pool1.shape}")
-    print(f"  Conv2 output: {cnn.conv2.shape}")
-    print(f"  Pool2 output: {cnn.pool2.shape}")
-    print(f"  Flattened: {cnn.flattened.shape}")
-    print(f"  Dense1 output: {cnn.dense_relu.shape}")
-    print(f"  Final output: {predictions.shape}")
-
-def train_multiple_samples(num_samples=100, epochs=5):
-    print("=" * 50)
-    print(f"TRAINING ON {num_samples} SAMPLES FOR {epochs} EPOCHS")
-    print("=" * 50)
-    
-    x_train, y_train, x_test, y_test = load_cifar10_data()
-    cnn = CNN()
-    
-    learning_rate = 0.001
-    
-    for epoch in range(epochs):
-        total_loss = 0
-        correct = 0
+        # Validation
+        val_loss, val_accuracy = evaluate_model(model, x_val, y_val)
         
-        for i in range(num_samples):
-            predictions = cnn.forward(x_train[i])
-            loss = cnn.compute_loss(predictions, y_train[i])
-            cnn.backprop(y_train[i])
-            cnn.update_weights(learning_rate)
-            
-            total_loss += loss
-            if np.argmax(predictions) == np.argmax(y_train[i]):
-                correct += 1
+        # Store history
+        history['train_loss'].append(train_loss)
+        history['train_accuracy'].append(train_accuracy)
+        history['val_loss'].append(val_loss)
+        history['val_accuracy'].append(val_accuracy)
         
-        accuracy = correct / num_samples * 100
-        avg_loss = total_loss / num_samples
-        print(f"Epoch {epoch+1}: Loss = {avg_loss:.4f}, Accuracy = {accuracy:.1f}%")
+        if verbose:
+            print(f"Epoch {epoch+1:3d}: "
+                  f"Train Loss: {train_loss:.4f}, Train Acc: {train_accuracy:.1f}% | "
+                  f"Val Loss: {val_loss:.4f}, Val Acc: {val_accuracy:.1f}%")
+    
+    return model, history
 
-def test_shapes():
-    """Test if all layer dimensions match up correctly."""
-    x_train, y_train, _, _ = load_cifar10_data()
-    cnn = CNN()
+def train_epoch(model, x_train, y_train, training_config):
+    """Train for one epoch."""
+    total_loss = 0
+    correct = 0
+    num_batches = 0
     
-    x = x_train[0]
-    print(f"Input: {x.shape}")
-    
-    pred = cnn.forward(x)
-    print(f"After pool2: {cnn.pool2.shape}")
-    print(f"After flatten: {cnn.flattened.shape}")
-    print(f"Weights1 expects: {cnn.weights1.shape[0]} inputs")
-    print(f"Match: {cnn.flattened.shape[0] == cnn.weights1.shape[0]}")
-
-def quick_gradient_check():
-    """Quick test to see if gradients are working."""
-    x_train, y_train, _, _ = load_cifar10_data()
-    cnn = CNN()
-    
-    x, y = x_train[0], y_train[0]
-    
-    # Get initial prediction and loss
-    pred1 = cnn.forward(x)
-    loss1 = cnn.compute_loss(pred1, y)
-    
-    # Compute gradients
-    cnn.backprop(y)
-    
-    # Update weights with small step
-    cnn.update_weights(0.001)
-    
-    # Check if loss decreased
-    pred2 = cnn.forward(x)
-    loss2 = cnn.compute_loss(pred2, y)
-    
-    print(f"Loss before: {loss1:.6f}")
-    print(f"Loss after:  {loss2:.6f}")
-    print(f"Improved: {loss2 < loss1}")
-    
-    return loss2 < loss1
-
-def test_batch_training():
-    """Test the BatchCNN with multiple samples."""
-    print("=" * 50)
-    print("TESTING BATCH TRAINING")
-    print("=" * 50)
-    
-    x_train, y_train, _, _ = load_cifar10_data()
-    batch_cnn = BatchCNN()
-    
-    batch_size = 100
-    learning_rate = 0.01  # Reduced learning rate
-    
-    # Get a batch of samples
-    batch_x = x_train[:batch_size]
-    batch_y = y_train[:batch_size]
-    
-    print(f"Training on batch of {batch_size} samples")
-    print(f"Batch input shape: {batch_x.shape}")
-    print(f"Batch labels shape: {batch_y.shape}")
-    
-    # Initial predictions
-    initial_preds = batch_cnn.forward(batch_x)
-    initial_loss = batch_cnn.compute_loss(initial_preds, batch_y)
-    initial_accuracy = np.mean(np.argmax(initial_preds, axis=1) == np.argmax(batch_y, axis=1)) * 100
-    
-    print(f"\nBefore training:")
-    print(f"Loss: {initial_loss:.4f}")
-    print(f"Accuracy: {initial_accuracy:.1f}%")
-    
-    # Debug: Show predictions vs true labels
-    print(f"True labels: {np.argmax(batch_y, axis=1)}")
-    print(f"Predictions: {np.argmax(initial_preds, axis=1)}")
-    print(f"Prediction confidences: {np.max(initial_preds, axis=1)}")
-    
-    # Train for a few epochs
-    for epoch in range(30):  # More epochs with smaller learning rate
-        preds = batch_cnn.forward(batch_x)
-        batch_cnn.backprop(batch_y)
-        batch_cnn.update_weights(learning_rate)
+    # Process in batches
+    for i in range(0, len(x_train), training_config.batch_size):
+        batch_end = min(i + training_config.batch_size, len(x_train))
+        batch_x = x_train[i:batch_end]
+        batch_y = y_train[i:batch_end]
         
-        # Compute new predictions with updated weights for accuracy
-        updated_preds = batch_cnn.forward(batch_x)
+        # Forward pass
+        predictions = model.forward(batch_x)
+        loss = model.compute_loss(predictions, batch_y)
         
-        loss = batch_cnn.compute_loss(preds, batch_y)
-        accuracy = np.mean(np.argmax(updated_preds, axis=1) == np.argmax(batch_y, axis=1)) * 100
-        print(f"Epoch {epoch+1}: Loss = {loss:.4f}, Accuracy = {accuracy:.1f}%")
+        # Backward pass
+        model.backprop(batch_y)
+        model.update_weights(training_config.learning_rate)
         
-        # Debug: Show predictions after epoch
-        if epoch == 0 or epoch == 4:  # Show first and last epoch
-            print(f"  Predictions: {np.argmax(updated_preds, axis=1)}")
-            print(f"  Confidences: {np.max(updated_preds, axis=1)}")
+        # Calculate accuracy
+        pred_classes = np.argmax(predictions, axis=1)
+        true_classes = np.argmax(batch_y, axis=1)
+        correct += np.sum(pred_classes == true_classes)
+        
+        total_loss += loss
+        num_batches += 1
     
-    print(f"\nImprovement:")
-    print(f"Loss: {initial_loss:.4f} → {loss:.4f}")
-    print(f"Accuracy: {initial_accuracy:.1f}% → {accuracy:.1f}%")
+    avg_loss = total_loss / num_batches
+    accuracy = (correct / len(x_train)) * 100
+    
+    return avg_loss, accuracy
 
-def debug_batch_shapes():
-    """Debug the shapes in batch processing"""
-    print("DEBUGGING BATCH SHAPES")
+def evaluate_model(model, x_val, y_val):
+    """Evaluate model on validation data."""
+    total_loss = 0
+    correct = 0
+    num_batches = 0
     
-    x_train, y_train, _, _ = load_cifar10_data()
-    batch_cnn = BatchCNN()
+    for i in range(0, len(x_val), 64):  # Use batch size 64 for evaluation
+        batch_end = min(i + 64, len(x_val))
+        batch_x = x_val[i:batch_end]
+        batch_y = y_val[i:batch_end]
+        
+        predictions = model.forward(batch_x)
+        loss = model.compute_loss(predictions, batch_y)
+        
+        pred_classes = np.argmax(predictions, axis=1)
+        true_classes = np.argmax(batch_y, axis=1)
+        correct += np.sum(pred_classes == true_classes)
+        
+        total_loss += loss
+        num_batches += 1
     
-    batch_x = x_train[:2]  # Just 2 samples for debugging
+    avg_loss = total_loss / num_batches
+    accuracy = (correct / len(x_val)) * 100
     
-    print(f"Input batch: {batch_x.shape}")
-    
-    # Step by step through forward pass
-    padded = batch_padding(batch_x)
-    print(f"After padding: {padded.shape}")
-    
-    conv1 = batch_conv(padded, batch_cnn.conv1_kernels)
-    print(f"After conv1: {conv1.shape}")
-    
-    relu1 = batch_relu(conv1)
-    pool1 = batch_max_pool(relu1)
-    print(f"After pool1: {pool1.shape}")
-    
-    second_padding = batch_padding(pool1)
-    print(f"After second padding: {second_padding.shape}")
-    
-    conv2 = batch_conv(second_padding, batch_cnn.conv2_kernels)
-    print(f"After conv2: {conv2.shape}")
-    
-    relu2 = batch_relu(conv2)
-    pool2 = batch_max_pool(relu2)
-    print(f"After pool2: {pool2.shape}")
-    
-    flattened = batch_flatten(pool2)
-    print(f"After flatten: {flattened.shape}")
-    print(f"Weights1 shape: {batch_cnn.weights1.shape}")
+    return avg_loss, accuracy
 
-def train_and_evaluate(learning_rate, batch_size, epochs):
-    """Train model with given hyperparameters and return final accuracy"""
-    x_train, y_train, _, _ = load_cifar10_data()
-    batch_cnn = BatchCNN()
-    
-    # Get batch of samples
-    batch_x = x_train[:batch_size]
-    batch_y = y_train[:batch_size]
-    
-    # Train
-    for epoch in range(epochs):
-        preds = batch_cnn.forward(batch_x)
-        batch_cnn.backprop(batch_y)
-        batch_cnn.update_weights(learning_rate)
-    
-    # Evaluate
-    final_preds = batch_cnn.forward(batch_x)
-    accuracy = np.mean(np.argmax(final_preds, axis=1) == np.argmax(batch_y, axis=1)) * 100
-    return accuracy
+def test_model(model, x_test, y_test):
+    """Test model on test data."""
+    loss, accuracy = evaluate_model(model, x_test, y_test)
+    print(f"Test Loss: {loss:.4f}, Test Accuracy: {accuracy:.1f}%")
+    return loss, accuracy
 
-def hyperparameter_search():
-    print("=== HYPERPARAMETER SEARCH ===")
+# Quick training function for experimentation
+def quick_train(learning_rate=0.01, batch_size=64, epochs=10, max_samples=1000):
+    """Quick training function for testing different configurations."""
+    model_config = ModelConfig()
+    training_config = TrainingConfig(
+        learning_rate=learning_rate,
+        batch_size=batch_size,
+        epochs=epochs
+    )
     
-    # Test learning rates
-    print("\nTesting Learning Rates:")
-    for lr in [0.001, 0.01, 0.1]:
-        acc = train_and_evaluate(lr, 64, 30)
-        print(f"LR {lr}: {acc:.1f}%")
+    model, history = train_model(
+        model_config, training_config, 
+        max_samples=max_samples, verbose=True
+    )
     
-    # Test batch sizes with best LR
-    print("\nTesting Batch Sizes:")
-    for batch_size in [32, 64, 128]:
-        acc = train_and_evaluate(0.01, batch_size, 30)  # Use best LR
-        print(f"Batch {batch_size}: {acc:.1f}%")
+    return model, history

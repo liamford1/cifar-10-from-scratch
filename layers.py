@@ -4,25 +4,18 @@ import numpy as np
 def conv(input, kernels):
     num_kernels = kernels.shape[0]
     h, w = input.shape[0] - 2, input.shape[1] - 2
-    output = np.zeros((h, w, num_kernels))
+    
+    patches = np.lib.stride_tricks.sliding_window_view(input, (3, 3, input.shape[2]), axis=(0, 1, 2)).reshape(h, w, 3*3*input.shape[2])
+    kernels_flat = kernels.reshape(num_kernels, 3*3*input.shape[2])
+    output = patches @ kernels_flat.T
 
-    for i in range(h):
-        for j in range(w):
-            for k in range(num_kernels):
-                patch = input[i:i+3, j:j+3, :]
-                output[i, j, k] = np.sum(patch * kernels[k])
-    return output
+    return output.reshape(h, w, num_kernels)
 
 def max_pool(input):
     h, w, c = input.shape
-    output = np.zeros((h//2, w//2, c))
-
-    for i in range(0, h, 2):
-        for j in range(0, w, 2):
-            for k in range(c):
-                patch = input[i:i+2, j:j+2, k]
-                output[i//2, j//2, k] = np.max(patch)
-    return output
+    
+    reshaped = input.reshape(h//2, 2, w//2, 2, c)
+    return np.max(reshaped, axis=(1, 3))
 
 def dense(input, w, b):
     return input @ w + b
@@ -42,7 +35,6 @@ def flatten(input):
 
 #BackProp Functions
 def max_pool_backward(input, grad_output):
-
         h, w, c = input.shape
         grad_input = np.zeros(input.shape)
 
@@ -50,9 +42,9 @@ def max_pool_backward(input, grad_output):
             for j in range(0, w, 2):
                 for k in range(c):
                     patch = input[i:i+2, j:j+2, k]
-                    max_num = np.argmax(patch)
-                    row = max_num // 2
-                    col = max_num % 2
+                    max_idx = np.argmax(patch)
+                    row = max_idx // 2
+                    col = max_idx % 2
                     grad_input[i + row, j + col, k] = grad_output[i//2, j//2, k]
 
         return grad_input
