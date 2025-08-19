@@ -83,3 +83,44 @@ def train_multiple_samples(num_samples=100, epochs=5):
         accuracy = correct / num_samples * 100
         avg_loss = total_loss / num_samples
         print(f"Epoch {epoch+1}: Loss = {avg_loss:.4f}, Accuracy = {accuracy:.1f}%")
+
+def test_shapes():
+    """Test if all layer dimensions match up correctly."""
+    x_train, y_train, _, _ = load_cifar10_data()
+    cnn = CNN()
+    
+    x = x_train[0]
+    print(f"Input: {x.shape}")
+    
+    pred = cnn.forward(x)
+    print(f"After pool2: {cnn.pool2.shape}")
+    print(f"After flatten: {cnn.flattened.shape}")
+    print(f"Weights1 expects: {cnn.weights1.shape[0]} inputs")
+    print(f"Match: {cnn.flattened.shape[0] == cnn.weights1.shape[0]}")
+
+def quick_gradient_check():
+    """Quick test to see if gradients are working."""
+    x_train, y_train, _, _ = load_cifar10_data()
+    cnn = CNN()
+    
+    x, y = x_train[0], y_train[0]
+    
+    # Get initial prediction and loss
+    pred1 = cnn.forward(x)
+    loss1 = cnn.compute_loss(pred1, y)
+    
+    # Compute gradients
+    cnn.backprop(y)
+    
+    # Update weights with small step
+    cnn.update_weights(0.001)
+    
+    # Check if loss decreased
+    pred2 = cnn.forward(x)
+    loss2 = cnn.compute_loss(pred2, y)
+    
+    print(f"Loss before: {loss1:.6f}")
+    print(f"Loss after:  {loss2:.6f}")
+    print(f"Improved: {loss2 < loss1}")
+    
+    return loss2 < loss1
