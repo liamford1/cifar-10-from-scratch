@@ -99,6 +99,20 @@ def batch_conv(input_batch, kernels):
 
     return output.reshape(batch_size, h-2, w-2, num_kernels)
 
+def batch_conv_kernels_backward(input_batch, grad_output_batch, kernel_shape):
+    batch_size, h, w, c = input_batch.shape
+    num_kernels = grad_output_batch.shape[3]
+
+    patches = np.lib.stride_tricks.sliding_window_view(input_batch, (3, 3, c), axis=(1, 2, 3)).reshape(batch_size, h-2, w-2, 3*3*c)
+    grad_flat = grad_output_batch.reshape(batch_size, (h-2)*(w-2), num_kernels)
+
+    grads = np.zeros((batch_size, 3*3*c, num_kernels))
+    for b in range(batch_size):
+        grads[b] = patches[b].reshape((h-2)*(w-2), 3*3*c).T @ grad_flat[b]
+    
+    return np.mean(grads, axis=0).reshape(kernel_shape)
+
+
 def batch_max_pool(input_batch):
     batch_size, h, w, c = input_batch.shape
 
