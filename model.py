@@ -154,15 +154,10 @@ class BatchCNN(BaseCNN):
         self.d_conv2_kernels = np.zeros_like(self.conv2_kernels)
         self.d_second_padding = np.zeros_like(self.second_padding)
         
-        for i in range(batch_size):
-            d_relu2_i = max_pool_backward(self.relu2[i], self.d_pool2[i])
-            self.d_relu2[i] = d_relu2_i
-            
-            d_conv2_i = d_relu2_i * relu_deriv(self.conv2[i])
-            self.d_conv2[i] = d_conv2_i
-            
-            d_second_padding_i = conv_input_backward(d_conv2_i, self.conv2_kernels, self.second_padding[i].shape)
-            self.d_second_padding[i] = d_second_padding_i
+        # Use vectorized batch functions
+        self.d_relu2 = batch_max_pool_backward(self.relu2, self.d_pool2)
+        self.d_conv2 = self.d_relu2 * relu_deriv(self.conv2)
+        self.d_second_padding = batch_conv_input_backward(self.d_conv2, self.conv2_kernels, self.second_padding.shape)
         
         self.d_conv2_kernels = batch_conv_kernels_backward(self.second_padding, self.d_conv2, self.conv2_kernels.shape)
         
@@ -173,15 +168,10 @@ class BatchCNN(BaseCNN):
         self.d_conv1_kernels = np.zeros_like(self.conv1_kernels)
         self.d_padded_input = np.zeros_like(self.padded_input)
         
-        for i in range(batch_size):
-            d_relu1_i = max_pool_backward(self.relu1[i], self.d_pool1[i])
-            self.d_relu1[i] = d_relu1_i
-            
-            d_conv1_i = d_relu1_i * relu_deriv(self.conv1[i])
-            self.d_conv1[i] = d_conv1_i
-            
-            d_padded_input_i = conv_input_backward(d_conv1_i, self.conv1_kernels, self.padded_input[i].shape)
-            self.d_padded_input[i] = d_padded_input_i
+        # Use vectorized batch functions
+        self.d_relu1 = batch_max_pool_backward(self.relu1, self.d_pool1)
+        self.d_conv1 = self.d_relu1 * relu_deriv(self.conv1)
+        self.d_padded_input = batch_conv_input_backward(self.d_conv1, self.conv1_kernels, self.padded_input.shape)
         
         self.d_conv1_kernels = batch_conv_kernels_backward(self.padded_input, self.d_conv1, self.conv1_kernels.shape)
         

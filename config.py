@@ -14,7 +14,7 @@ class ModelConfig:
 @dataclass
 class TrainingConfig:
     learning_rate: float = 0.01
-    batch_size: int = 64
+    batch_size: int = 128  # Increased from 64 for better vectorization
     epochs: int = 100
     validation_split: float = 0.2
     gradient_clip_norm: float = 1.0
