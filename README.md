@@ -7,10 +7,6 @@ A complete Convolutional Neural Network implementation in pure NumPy, trained on
 - **Backward Pass**: Complete backpropagation for all layers
 - **Training Loop**: Gradient descent with learning rate optimization
 - **No frameworks**: Pure NumPy implementation
-
-## 📊 Results
-- **Loss reduction**: 1.97 → 0.004 (99.8% improvement)
-- **Accuracy**: 99.56% confidence on test sample
 - **Architecture**: Conv→ReLU→Pool→Conv→ReLU→Pool→Dense→ReLU→Dense→Softmax
 
 ## 🚀 Key Achievements
